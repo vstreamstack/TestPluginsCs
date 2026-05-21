@@ -1,8 +1,10 @@
 package com.example
 
+import android.util.Base64
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.util.ArrayList
 
@@ -18,14 +20,12 @@ class AnichinProvider : MainAPI() {
         val document = app.get(url).document
         val homePageList = ArrayList<HomePageList>()
 
-        // 1. Mengambil section Popular Today berdasarkan struktur bixbox terbaru
         val popularElements = document.select(".bixbox:contains(Popular Today) .listupd article.bs")
         val popularDonghua = popularElements.mapNotNull { it.toSearchResult() }
         if (popularDonghua.isNotEmpty()) {
             homePageList.add(HomePageList("Popular Today", popularDonghua))
         }
 
-        // 2. Mengambil section Latest Release berdasarkan struktur bixbox terbaru
         val latestElements = document.select(".bixbox:contains(Latest Release) .listupd article.bs")
         val latestDonghua = latestElements.mapNotNull { it.toSearchResult() }
         if (latestDonghua.isNotEmpty()) {
@@ -36,12 +36,9 @@ class AnichinProvider : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        // Berdasarkan HTML, judul utama berada di dalam tag h2 milik class .tt
         val title = this.selectFirst(".tt h2, h2[itemprop=headline]")?.text()?.trim() ?: return null
-        // Tautan detail donghua berada di elemen anchor pertama dalam .bsx
         val href = this.selectFirst(".bsx a, a")?.attr("href") ?: return null
         
-        // Poster gambar menggunakan src standar WordPress
         val img = this.selectFirst("img")
         val poster = if (img != null && img.hasAttr("data-src")) img.attr("data-src") else img?.attr("src")
 
@@ -62,18 +59,26 @@ class AnichinProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
 
-        val title = document.selectFirst("h1.entry-title, .entry-title")?.text()?.trim() ?: return null
-        val img = document.selectFirst("div.thumb img, .poster img")
+        // Mengambil judul bersih dengan aman apakah ada kata "Episode" atau tidak
+        val rawTitle = document.selectFirst("h1.entry-title")?.text()?.trim() ?: return null
+        val title = if (rawTitle.contains("Episode")) {
+            rawTitle.replace("Subtitle Indonesia", "").split("Episode")[0].trim()
+        } else {
+            rawTitle.replace("Subtitle Indonesia", "").trim()
+        }
+
+        val img = document.selectFirst(".thumb img, .poster img")
         val poster = if (img != null && img.hasAttr("data-src")) img.attr("data-src") else img?.attr("src")
-        val description = document.selectFirst("div.entry-content[itemprop=description], .entry-content")?.text()?.trim()
+        val description = document.selectFirst(".entry-content, .desc")?.text()?.trim()
 
         val episodes = ArrayList<Episode>()
-        val episodeElements = document.select("div.eplister ul li, .listeps ul li")
         
+        // Membaca daftar rincian episode dari sidebar (.episodelist)
+        val episodeElements = document.select(".episodelist ul li a")
         if (episodeElements.isNotEmpty()) {
-            episodeElements.forEach { li ->
-                val epHref = li.selectFirst("a")?.attr("href") ?: return@forEach
-                val epTitle = li.selectFirst("div.epl-num, .epnum")?.text() ?: "Episode"
+            episodeElements.forEach { a ->
+                val epHref = a.attr("href") ?: return@forEach
+                val epTitle = a.selectFirst("h4")?.text()?.trim() ?: "Episode"
                 
                 episodes.add(newEpisode(epHref) {
                     this.name = epTitle
@@ -81,13 +86,14 @@ class AnichinProvider : MainAPI() {
             }
         } else {
             episodes.add(newEpisode(url) {
-                this.name = "Tonton Movie"
+                this.name = "Tonton"
             })
         }
 
         return newAnimeLoadResponse(title, url, TvType.Anime) {
             this.posterUrl = poster
             this.plot = description
+            // Mengurutkan dari episode terkecil/lama ke episode terbaru di aplikasi
             addEpisodes(DubStatus.Subbed, episodes.reversed())
         }
     }
@@ -99,27 +105,33 @@ class AnichinProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
-        val mirrors = document.select("select.mirror option, ul.mirrorist li a, .player-embed iframe")
         
-        if (mirrors.isEmpty()) {
-            document.select("iframe[src]").forEach { iframe ->
-                val embedUrl = iframe.attr("src")
-                if (embedUrl.isNotEmpty()) {
-                    loadExtractor(embedUrl, data, subtitleCallback, callback)
+        // Mendekripsi server video terenkripsi Base64 dari elemen dropdown mirror
+        val options = document.select("select.mirror option")
+        options.forEach { option ->
+            val base64Value = option.attr("value")
+            if (!base64Value.isNullOrEmpty()) {
+                try {
+                    val decodedBytes = Base64.decode(base64Value, Base64.DEFAULT)
+                    val decodedHtml = String(decodedBytes, Charsets.UTF_8)
+                    
+                    val iframeDoc = Jsoup.parse(decodedHtml)
+                    val embedUrl = iframeDoc.selectFirst("iframe")?.attr("src")
+                    
+                    if (!embedUrl.isNullOrEmpty() && embedUrl.startsWith("http")) {
+                        loadExtractor(embedUrl, data, subtitleCallback, callback)
+                    }
+                } catch (e: Exception) {
+                    // Abaikan server jika proses dekripsi gagal
                 }
             }
-        } else {
-            mirrors.forEach { mirror ->
-                val embedUrl = if (mirror.tagName() == "option") {
-                    mirror.attr("value")
-                } else {
-                    val dataEmbed = mirror.attr("data-embed")
-                    if (dataEmbed.isNotEmpty()) dataEmbed else mirror.attr("href")
-                }
+        }
 
-                if (embedUrl.isNotEmpty() && embedUrl.startsWith("http")) {
-                    loadExtractor(embedUrl, data, subtitleCallback, callback)
-                }
+        // Cadangan: Ambil langsung jika iframe sudah tertanam di pemutar utama
+        document.select("#embed_holder iframe, .player-embed iframe").forEach { iframe ->
+            val embedUrl = iframe.attr("src")
+            if (!embedUrl.isNullOrEmpty() && embedUrl.startsWith("http")) {
+                loadExtractor(embedUrl, data, subtitleCallback, callback)
             }
         }
 
