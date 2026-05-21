@@ -13,27 +13,25 @@ class AnichinProvider : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie)
 
-    // Menggunakan struktur halaman utama standar versi stabil
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val url = if (page > 1) "$mainUrl/page/$page/" else mainUrl
         val document = app.get(url).document
         val homePageList = ArrayList<HomePageList>()
 
-        // Mengambil daftar Donghua Terbaru
         val latestElements = document.select("div.block:contains(Latest Release) div.listupd div.bs")
         val latestDonghua = latestElements.mapNotNull { it.toSearchResult() }
         if (latestDonghua.isNotEmpty()) {
             homePageList.add(HomePageList("Latest Release", latestDonghua))
         }
 
-        // Mengambil daftar Donghua Populer
         val popularElements = document.select("div.block:contains(Popular Today) div.listupd div.bs")
         val popularDonghua = popularElements.mapNotNull { it.toSearchResult() }
         if (popularDonghua.isNotEmpty()) {
             homePageList.add(HomePageList("Popular Today", popularDonghua))
         }
 
-        return HomePageResponse(homePageList)
+        // Menggunakan builder method baru
+        return newHomePageResponse(homePageList)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -43,16 +41,10 @@ class AnichinProvider : MainAPI() {
         val img = this.selectFirst("img")
         val poster = if (img != null && img.hasAttr("data-src")) img.attr("data-src") else img?.attr("src")
 
-        // Menggunakan AnimeSearchResponse standar yang kompatibel
-        return AnimeSearchResponse(
-            title,
-            href,
-            this@AnichinProvider.name,
-            TvType.Anime,
-            poster,
-            null,
-            null
-        )
+        // Menggunakan builder newAnimeSearchResponse
+        return newAnimeSearchResponse(title, href, TvType.Anime) {
+            this.posterUrl = poster
+        }
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -80,26 +72,23 @@ class AnichinProvider : MainAPI() {
                 val epHref = li.selectFirst("a")?.attr("href") ?: return@forEach
                 val epTitle = li.selectFirst("div.epl-num, .epnum")?.text() ?: "Episode"
                 
-                // Menggunakan constructor Episode dasar tanpa parameter deprecated
-                episodes.add(Episode(epHref, epTitle))
+                // Menggunakan builder newEpisode
+                episodes.add(newEpisode(epHref) {
+                    this.name = epTitle
+                })
             }
         } else {
-            episodes.add(Episode(url, "Tonton Movie"))
+            episodes.add(newEpisode(url) {
+                this.name = "Tonton Movie"
+            })
         }
 
-        // Menggunakan AnimeLoadResponse standar versi stabil
-        return AnimeLoadResponse(
-            title,
-            title,
-            url,
-            this.name,
-            TvType.Anime,
-            poster,
-            episodes.reversed(),
-            description,
-            null,
-            null
-        )
+        // Menggunakan builder newAnimeLoadResponse
+        return newAnimeLoadResponse(title, url, TvType.Anime) {
+            this.posterUrl = poster
+            this.plot = description
+            addEpisodes(DubStatus.Subbed, episodes.reversed())
+        }
     }
 
     override suspend fun loadLinks(
