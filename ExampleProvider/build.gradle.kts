@@ -3,30 +3,32 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
 }
 
-// Use an integer for version numbers
+// Gunakan angka bulat untuk versi rilis plugin Anda
 version = 1
 
 cloudstream {
-    // All of these properties are optional, you can safely remove any of them.
-
-    description = "Lorem ipsum"
-    authors = listOf("Cloudburst", "Luna712")
+    // Nama resmi yang akan muncul di daftar aplikasi Cloudstream HP Anda
+    name = "Anichin"
+    
+    description = "Ekstensi resmi untuk menonton Donghua di Anichin"
+    authors = listOf("vstreamstack")
 
     /**
-    * Status int as one of the following:
+    * Status kode:
     * 0: Down
-    * 1: Ok
+    * 1: Ok (Aktif)
     * 2: Slow
     * 3: Beta-only
     **/
-    status = 1 // Will be 3 if unspecified
+    status = 1
 
-    tvTypes = listOf("Movie")
+    // Menentukan jenis konten yang disediakan (Anime/Donghua)
+    tvTypes = listOf("Anime", "Movie")
 
     requiresResources = true
-    language = "en"
+    language = "id"
 
-    // Random CC logo I found
+    // Ikon opsional (Bisa Anda ganti nanti jika punya URL gambar sendiri)
     iconUrl = "https://upload.wikimedia.org/wikipedia/commons/2/2f/Korduene_Logo.png"
 }
 
