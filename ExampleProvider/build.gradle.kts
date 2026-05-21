@@ -8,7 +8,7 @@ version = 1
 
 cloudstream {
     // Nama resmi yang akan muncul di daftar aplikasi Cloudstream HP Anda
-    name = "Anichin"
+    //name = "Anichin"
     
     description = "Ekstensi resmi untuk menonton Donghua di Anichin"
     authors = listOf("vstreamstack")
