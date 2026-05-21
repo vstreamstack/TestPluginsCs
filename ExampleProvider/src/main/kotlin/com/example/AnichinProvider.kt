@@ -18,30 +18,33 @@ class AnichinProvider : MainAPI() {
         val document = app.get(url).document
         val homePageList = ArrayList<HomePageList>()
 
-        val latestElements = document.select("div.block:contains(Latest Release) div.listupd div.bs")
-        val latestDonghua = latestElements.mapNotNull { it.toSearchResult() }
-        if (latestDonghua.isNotEmpty()) {
-            homePageList.add(HomePageList("Latest Release", latestDonghua))
-        }
-
-        val popularElements = document.select("div.block:contains(Popular Today) div.listupd div.bs")
+        // 1. Mengambil section Popular Today berdasarkan struktur bixbox terbaru
+        val popularElements = document.select(".bixbox:contains(Popular Today) .listupd article.bs")
         val popularDonghua = popularElements.mapNotNull { it.toSearchResult() }
         if (popularDonghua.isNotEmpty()) {
             homePageList.add(HomePageList("Popular Today", popularDonghua))
         }
 
-        // Menggunakan builder method baru
+        // 2. Mengambil section Latest Release berdasarkan struktur bixbox terbaru
+        val latestElements = document.select(".bixbox:contains(Latest Release) .listupd article.bs")
+        val latestDonghua = latestElements.mapNotNull { it.toSearchResult() }
+        if (latestDonghua.isNotEmpty()) {
+            homePageList.add(HomePageList("Latest Release", latestDonghua))
+        }
+
         return newHomePageResponse(homePageList)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val title = this.selectFirst("div.tt, h2, .film-name a")?.text()?.trim() ?: return null
-        val href = this.selectFirst("a")?.attr("href") ?: return null
+        // Berdasarkan HTML, judul utama berada di dalam tag h2 milik class .tt
+        val title = this.selectFirst(".tt h2, h2[itemprop=headline]")?.text()?.trim() ?: return null
+        // Tautan detail donghua berada di elemen anchor pertama dalam .bsx
+        val href = this.selectFirst(".bsx a, a")?.attr("href") ?: return null
         
+        // Poster gambar menggunakan src standar WordPress
         val img = this.selectFirst("img")
         val poster = if (img != null && img.hasAttr("data-src")) img.attr("data-src") else img?.attr("src")
 
-        // Menggunakan builder newAnimeSearchResponse
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = poster
         }
@@ -51,7 +54,7 @@ class AnichinProvider : MainAPI() {
         val searchUrl = "$mainUrl/?s=$query"
         val document = app.get(searchUrl).document
         
-        return document.select("div.listupd div.bs, div.sorandbx div.bs").mapNotNull {
+        return document.select(".listupd article.bs").mapNotNull {
             it.toSearchResult()
         }
     }
@@ -72,7 +75,6 @@ class AnichinProvider : MainAPI() {
                 val epHref = li.selectFirst("a")?.attr("href") ?: return@forEach
                 val epTitle = li.selectFirst("div.epl-num, .epnum")?.text() ?: "Episode"
                 
-                // Menggunakan builder newEpisode
                 episodes.add(newEpisode(epHref) {
                     this.name = epTitle
                 })
@@ -83,7 +85,6 @@ class AnichinProvider : MainAPI() {
             })
         }
 
-        // Menggunakan builder newAnimeLoadResponse
         return newAnimeLoadResponse(title, url, TvType.Anime) {
             this.posterUrl = poster
             this.plot = description
