@@ -13,32 +13,27 @@ class AnichinProvider : MainAPI() {
     override var lang = "id"
     override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie)
 
-    override val mainPage = mainPageOf(
-        Pair("latest", "Latest Release"),
-        Pair("popular", "Popular Today"),
-        Pair("movie", "New Movie")
-    )
-
+    // Menggunakan struktur halaman utama standar versi stabil
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val url = if (page > 1) "$mainUrl/page/$page/" else mainUrl
         val document = app.get(url).document
-        val homeItems = ArrayList<SearchResponse>()
+        val homePageList = ArrayList<HomePageList>()
 
-        val selector = when (request.data) {
-            "latest" -> "div.block:contains(Latest Release) div.listupd div.bs"
-            "popular" -> "div.block:contains(Popular Today) div.listupd div.bs"
-            "movie" -> "div.block:contains(NEW MOVIE) div.listupd div.bs, div.block:contains(NEW MOVIE) div.flw-item"
-            else -> "div.listupd div.bs"
+        // Mengambil daftar Donghua Terbaru
+        val latestElements = document.select("div.block:contains(Latest Release) div.listupd div.bs")
+        val latestDonghua = latestElements.mapNotNull { it.toSearchResult() }
+        if (latestDonghua.isNotEmpty()) {
+            homePageList.add(HomePageList("Latest Release", latestDonghua))
         }
 
-        document.select(selector).forEach { element ->
-            val searchResult = element.toSearchResult()
-            if (searchResult != null) {
-                homeItems.add(searchResult)
-            }
+        // Mengambil daftar Donghua Populer
+        val popularElements = document.select("div.block:contains(Popular Today) div.listupd div.bs")
+        val popularDonghua = popularElements.mapNotNull { it.toSearchResult() }
+        if (popularDonghua.isNotEmpty()) {
+            homePageList.add(HomePageList("Popular Today", popularDonghua))
         }
 
-        return NewHomePageResponse(request.name, homeItems, true)
+        return HomePageResponse(homePageList)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -46,11 +41,18 @@ class AnichinProvider : MainAPI() {
         val href = this.selectFirst("a")?.attr("href") ?: return null
         
         val img = this.selectFirst("img")
-        val posterUrl = if (img != null && img.hasAttr("data-src")) img.attr("data-src") else img?.attr("src")
+        val poster = if (img != null && img.hasAttr("data-src")) img.attr("data-src") else img?.attr("src")
 
-        return NewShowSearchResponse(title, href, this@AnichinProvider.name, TvType.Anime) {
-            this.posterUrl = posterUrl
-        }
+        // Menggunakan AnimeSearchResponse standar yang kompatibel
+        return AnimeSearchResponse(
+            title,
+            href,
+            this@AnichinProvider.name,
+            TvType.Anime,
+            poster,
+            null,
+            null
+        )
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -77,16 +79,27 @@ class AnichinProvider : MainAPI() {
             episodeElements.forEach { li ->
                 val epHref = li.selectFirst("a")?.attr("href") ?: return@forEach
                 val epTitle = li.selectFirst("div.epl-num, .epnum")?.text() ?: "Episode"
+                
+                // Menggunakan constructor Episode dasar tanpa parameter deprecated
                 episodes.add(Episode(epHref, epTitle))
             }
         } else {
             episodes.add(Episode(url, "Tonton Movie"))
         }
 
-        return NewShowLoadResponse(title, url, this.name, TvType.Anime, episodes.reversed()) {
-            this.posterUrl = poster
-            this.plot = description
-        }
+        // Menggunakan AnimeLoadResponse standar versi stabil
+        return AnimeLoadResponse(
+            title,
+            title,
+            url,
+            this.name,
+            TvType.Anime,
+            poster,
+            episodes.reversed(),
+            description,
+            null,
+            null
+        )
     }
 
     override suspend fun loadLinks(
