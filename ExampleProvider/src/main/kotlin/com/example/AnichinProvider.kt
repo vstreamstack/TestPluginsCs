@@ -6,7 +6,7 @@ import org.jsoup.nodes.Element
 import java.util.ArrayList
 
 class AnichinProvider : MainAPI() {
-    override var mainUrl = "https://anichin.cafe" // Ganti jika domain utama berubah (ex: anichin.team)
+    override var mainUrl = "https://anichin.cafe" // Ganti jika domain utama berubah (ex: anichin.team) sebagai alternativ
     override var name = "Anichin"
     override val hasMainPage = true
     override var lang = "id"
