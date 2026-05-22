@@ -14,5 +14,6 @@ class AnichinPlugin: Plugin() {
 
         // Mendaftarkan pengeruk utama Anichin
         registerMainAPI(AnichinProvider())
+        registerMainAPI(KelasMalamProvider())
     }
 }
