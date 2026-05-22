@@ -24,7 +24,8 @@ class KelasMalamProvider : MainAPI() {
             home.add(HomePageList("Latest Videos", items))
         }
 
-        return处 HomePageResponse(home, hasNext = false)
+        // Typo "return处" sudah diperbaiki menjadi "return"
+        return HomePageResponse(home, hasNext = false)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -40,14 +41,10 @@ class KelasMalamProvider : MainAPI() {
         val posterUrl = this.selectFirst("img")?.attr("data-src") 
             ?: this.selectFirst("img")?.attr("src")
 
-        return MovieSearchResponse(
-            title,
-            href,
-            this@KelasMalamProvider.name,
-            TvType.Movie,
-            posterUrl,
-            null
-        )
+        // Memperbaiki deprecated MovieSearchResponse menjadi newMovieSearchResponse
+        return newMovieSearchResponse(title, href, TvType.Movie) {
+            this.posterUrl = posterUrl
+        }
     }
 
     override suspend fun load(url: String): LoadResponse? {
@@ -59,7 +56,6 @@ class KelasMalamProvider : MainAPI() {
 
         val tags = document.select(".tags-list a").map { it.text() }
 
-        // Menggunakan newMovieLoadResponse untuk menghindari error deprecated constructor
         return newMovieLoadResponse(title, url, TvType.Movie, url) {
             this.posterUrl = posterUrl
             this.plot = plot
@@ -75,22 +71,18 @@ class KelasMalamProvider : MainAPI() {
     ): Boolean {
         
         val document = app.get(data).document
-        // Mengambil seluruh kontainer server video baik yang aktif maupun tersembunyi
         val serverElements = document.select(".video-servers .server-content")
 
         for (server in serverElements) {
             val embedData = server.attr("data-embed")
             
             if (embedData.isNotEmpty()) {
-                // Regex untuk menangkap URL di dalam tag src iframe yang ter-escape
                 val srcRegex = """src=\\"(https://[^"\s]+)\\"""".toRegex()
                 val matchResult = srcRegex.find(embedData)
                 
-                // Menghapus backslash (\/) dari URL agar menjadi alamat yang valid
                 val serverUrl = matchResult?.groups?.get(1)?.value?.replace("\\/", "/")
                 
                 if (!serverUrl.isNullOrEmpty()) {
-                    // loadExtractor secara otomatis mengenali Doodstream, Streamtape, dll.
                     loadExtractor(serverUrl, data, subtitleCallback, callback)
                 }
             }
