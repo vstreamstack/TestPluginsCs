@@ -24,8 +24,8 @@ class KelasMalamProvider : MainAPI() {
             home.add(HomePageList("Latest Videos", items))
         }
 
-        // Typo "return处" sudah diperbaiki menjadi "return"
-        return HomePageResponse(home, hasNext = false)
+        // MENGGUNAKAN newHomePageResponse
+        return newHomePageResponse(home) 
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -41,7 +41,6 @@ class KelasMalamProvider : MainAPI() {
         val posterUrl = this.selectFirst("img")?.attr("data-src") 
             ?: this.selectFirst("img")?.attr("src")
 
-        // Memperbaiki deprecated MovieSearchResponse menjadi newMovieSearchResponse
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = posterUrl
         }
