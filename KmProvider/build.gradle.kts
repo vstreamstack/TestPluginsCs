@@ -7,9 +7,7 @@ dependencies {
 version = 1
 
 cloudstream {
-    // Nama resmi yang akan muncul di daftar aplikasi Cloudstream HP Anda
-    name = "Kelas Malam"
-    
+      
     description = "Ekstensi resmi untuk menonton video di Kelas Malam"
     authors = listOf("vstreamstack")
 
