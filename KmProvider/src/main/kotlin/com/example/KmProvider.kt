@@ -15,7 +15,7 @@ class KelasMalamProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
         val document = app.get(mainUrl).document
         val home = ArrayList<HomePageList>()
-
+        
         // Mengambil list video dari halaman utama
         val elements = document.select("article.loop-video")
         val items = elements.mapNotNull { it.toSearchResponse() }
@@ -23,21 +23,21 @@ class KelasMalamProvider : MainAPI() {
         if (items.isNotEmpty()) {
             home.add(HomePageList("Latest Videos", items))
         }
-
-        return newHomePageResponse(home) 
+        return newHomePageResponse(home)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.get("$mainUrl/?s=$query").document
-        return document.select("article.loop-video").mapNotNull { 
-            it.toSearchResponse() 
-        }
+        return document.select("article.loop-video").mapNotNull { it.toSearchResponse() }
     }
 
     private fun Element.toSearchResponse(): SearchResponse? {
         val title = this.selectFirst(".entry-header span")?.text() ?: return null
         val href = this.selectFirst("a")?.attr("href") ?: return null
-        val posterUrl = this.selectFirst("img")?.attr("data-src") 
+        
+        // Memperbaiki ekstraksi thumbnail jika menggunakan lazy-load dari plugin optimasi jejaring
+        val posterUrl = this.selectFirst("img")?.attr("data-lazy-src")
+            ?: this.selectFirst("img")?.attr("data-src")
             ?: this.selectFirst("img")?.attr("src")
 
         return newMovieSearchResponse(title, href, TvType.Movie) {
@@ -47,11 +47,9 @@ class KelasMalamProvider : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
-
         val title = document.selectFirst("h1.entry-title")?.text() ?: return null
         val posterUrl = document.selectFirst("meta[itemprop=thumbnailUrl]")?.attr("content")
         val plot = document.selectFirst(".video-description .desc p")?.text()
-
         val tags = document.select(".tags-list a").map { it.text() }
 
         return newMovieLoadResponse(title, url, TvType.Movie, url) {
@@ -67,7 +65,6 @@ class KelasMalamProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        
         val document = app.get(data).document
 
         // STRATEGI 1: Ambil dari elemen tab server (.video-servers)
@@ -75,25 +72,29 @@ class KelasMalamProvider : MainAPI() {
         for (server in serverElements) {
             val embedData = server.attr("data-embed")
             if (embedData.isNotEmpty()) {
-                // Regex baru yang fleksibel mendukung tanda kutip biasa ataupun dengan backslash
+                // Regex fleksibel mendukung tanda kutip biasa ataupun dengan backslash
                 val srcRegex = """src=\\?"(https://[^"\s\\]+)\\?"""".toRegex()
                 val matchResult = srcRegex.find(embedData)
-                val serverUrl = matchResult?.groups?.get(1)?.value?.replace("\\/", "/")
                 
+                // Bersihkan escape backslash (\/) dari data JSON/HTML entities
+                val serverUrl = matchResult?.groups?.get(1)?.value?.replace("\\/", "/")
                 if (!serverUrl.isNullOrEmpty()) {
                     loadExtractor(serverUrl, data, subtitleCallback, callback)
                 }
             }
         }
 
-        // STRATEGI 2: Scan langsung semua iframe yang tertanam di halaman single page
+        // STRATEGI 2: Scan langsung semua iframe (Ditambahkan penanganan LiteSpeed Lazyload)
         val iframes = document.select("iframe")
         for (iframe in iframes) {
-            val src = iframe.attr("src")
-            if (src.isNotEmpty()) {
-                // Pastikan url mengarah ke server video populer agar tidak mengekstrak iklan/disqus
+            // Dahulukan data-litespeed-src, jika kosong baru gunakan src biasa
+            val src = iframe.attr("data-litespeed-src").ifEmpty { iframe.attr("src") }
+            
+            if (src.isNotEmpty() && src != "about:blank") {
+                // Pastikan url mengarah ke server video populer agar tidak mengekstrak iklan
                 if (src.contains("dood") || src.contains("streamtape") || src.contains("embed") || src.contains("player")) {
-                    loadExtractor(src, data, subtitleCallback, callback)
+                    val cleanSrc = src.replace("\\/", "/")
+                    loadExtractor(cleanSrc, data, subtitleCallback, callback)
                 }
             }
         }
