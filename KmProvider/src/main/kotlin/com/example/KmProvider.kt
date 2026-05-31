@@ -36,7 +36,7 @@ class KelasMalamProvider : MainAPI() {
         val href = this.selectFirst("a")?.attr("href") ?: return null
         
         // Memperbaiki ekstraksi thumbnail jika menggunakan lazy-load dari plugin optimasi jejaring
-        val posterUrl = this.selectFirst("img")?.attr("data-lazy-src")
+        val posterUrl = this.selectFirst("article")?.attr("data-main-thumb")
             ?: this.selectFirst("img")?.attr("data-src")
             ?: this.selectFirst("img")?.attr("src")
 
