@@ -24,7 +24,6 @@ class KelasMalamProvider : MainAPI() {
             home.add(HomePageList("Latest Videos", items))
         }
 
-        // MENGGUNAKAN newHomePageResponse
         return newHomePageResponse(home) 
     }
 
@@ -70,19 +69,31 @@ class KelasMalamProvider : MainAPI() {
     ): Boolean {
         
         val document = app.get(data).document
-        val serverElements = document.select(".video-servers .server-content")
 
+        // STRATEGI 1: Ambil dari elemen tab server (.video-servers)
+        val serverElements = document.select(".video-servers .server-content, .server-content")
         for (server in serverElements) {
             val embedData = server.attr("data-embed")
-            
             if (embedData.isNotEmpty()) {
-                val srcRegex = """src=\\"(https://[^"\s]+)\\"""".toRegex()
+                // Regex baru yang fleksibel mendukung tanda kutip biasa ataupun dengan backslash
+                val srcRegex = """src=\\?"(https://[^"\s\\]+)\\?"""".toRegex()
                 val matchResult = srcRegex.find(embedData)
-                
                 val serverUrl = matchResult?.groups?.get(1)?.value?.replace("\\/", "/")
                 
                 if (!serverUrl.isNullOrEmpty()) {
                     loadExtractor(serverUrl, data, subtitleCallback, callback)
+                }
+            }
+        }
+
+        // STRATEGI 2: Scan langsung semua iframe yang tertanam di halaman single page
+        val iframes = document.select("iframe")
+        for (iframe in iframes) {
+            val src = iframe.attr("src")
+            if (src.isNotEmpty()) {
+                // Pastikan url mengarah ke server video populer agar tidak mengekstrak iklan/disqus
+                if (src.contains("dood") || src.contains("streamtape") || src.contains("embed") || src.contains("player")) {
+                    loadExtractor(src, data, subtitleCallback, callback)
                 }
             }
         }
